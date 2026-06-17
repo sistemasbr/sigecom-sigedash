@@ -19,6 +19,11 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     WebRootPath = webRoot
 });
 
+// Carrega credenciais locais reais (gitignored) — sobrescreve appsettings.Development.json
+builder.Configuration.AddJsonFile(
+    $"appsettings.{builder.Environment.EnvironmentName}.local.json",
+    optional: true, reloadOnChange: true);
+
 builder.Services.AddDbContext<AppDbContext>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
@@ -67,6 +72,7 @@ app.MapIngest();
 app.MapAuth(app.Configuration);
 app.MapDashboards();
 app.MapIa();
+app.MapAdmin(app.Configuration);
 
 // Fallback para SPA — todas as rotas não-API servem index.html
 app.MapFallbackToFile("index.html");

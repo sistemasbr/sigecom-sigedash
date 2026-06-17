@@ -1,12 +1,10 @@
 ; ── SigeDash Agente — Script de Instalação (Inno Setup 6.x) ─────────────────────
 ; Gera: SigeDashAgente-Setup.exe
-; Requer: binários compilados em deploy\agente\bin\ (gerados por build-instalador.bat)
-; Instala o agente como Windows Service (auto-start) e grava a config informada pelo técnico.
+; Requer: binários compilados em deploy\agente\bin\
+; O instalador registra o cliente no backend automaticamente — sem etapas manuais.
 ; ────────────────────────────────────────────────────────────────────────────────
 
 #define AppName      "SigeDash Agente"
-; Versão pode ser injetada pelo CI/CD: ISCC.exe /dAppVersion=1.2.3 instalar-agente.iss
-; Se não informada, usa o fallback abaixo.
 #ifndef AppVersion
   #define AppVersion "1.0.0"
 #endif
@@ -34,126 +32,113 @@ CloseApplications=yes
 RestartIfNeededByRun=no
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
-; Ícone do instalador (opcional — descomente se tiver um .ico)
-; SetupIconFile=..\..\Logo-BG\icon.ico
 
 [Languages]
 Name: "ptbr"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 
 [Files]
-; Binários compilados do agente (Release x64)
+; Binários do agente
 Source: "bin\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+; Script de configuração automática
+Source: "configurar-cliente.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Desinstalar {#AppName}"; Filename: "{uninstallexe}"
 
-; ── Páginas customizadas e lógica de configuração ────────────────────────────
+; ────────────────────────────────────────────────────────────────────────────────
 [Code]
 
 var
-  PageConfig: TInputQueryWizardPage;
+  PageBackend : TInputQueryWizardPage;   // URL + chave admin
+  PageCliente : TInputQueryWizardPage;   // dados do cliente e usuário
 
-// ── Cria a página de configuração do agente ──────────────────────────────────
+// ── Página 1: conexão com o backend ──────────────────────────────────────────
+// ── Página 2: dados do cliente ────────────────────────────────────────────────
 procedure InitializeWizard;
 begin
-  PageConfig := CreateInputQueryPage(wpSelectDir,
-    'Configuração da Conexão',
-    'Informe os dados necessários para o agente se conectar',
-    'O técnico deve preencher com os dados do cliente. As informações serão' +
-    ' gravadas no arquivo de configuração do agente.');
+  // Página 1 — backend
+  PageBackend := CreateInputQueryPage(wpSelectDir,
+    'Conexão com o Servidor SigeDash',
+    'Informe os dados de acesso ao servidor SigeDash (fornecidos pela SistemasBr)',
+    '');
 
-  // Campo 0: caminho do arquivo .FDB do Firebird
-  PageConfig.Add('Caminho do banco de dados Firebird (.FDB):', False);
-  PageConfig.Values[0] := 'C:\Sigecom\dados\EMPRESA.FDB';
+  PageBackend.Add('URL do servidor SigeDash:', False);
+  PageBackend.Values[0] := 'https://dash.sigedash.com.br';
 
-  // Campo 1: URL do backend SigeDash (VPS)
-  PageConfig.Add('URL do Backend SigeDash:', False);
-  PageConfig.Values[1] := 'https://dash.sigedash.com.br';
+  PageBackend.Add('Chave de administração (fornecida pela SistemasBr):', True);
+  PageBackend.Values[1] := '';
 
-  // Campo 2: chave única do cliente (fornecida pela SistemasBr)
-  PageConfig.Add('Chave do Cliente (fornecida pela SistemasBr):', False);
-  PageConfig.Values[2] := '';
+  // Página 2 — cliente
+  PageCliente := CreateInputQueryPage(PageBackend.ID,
+    'Dados do Cliente',
+    'Informe os dados da empresa e do primeiro usuário do painel',
+    '');
+
+  PageCliente.Add('Nome da empresa (ex: Autopeças Silva):', False);
+  PageCliente.Values[0] := '';
+
+  PageCliente.Add('Caminho do banco Firebird (.FDB):', False);
+  PageCliente.Values[1] := 'C:\Sigecom\dados\EMPRESA.FDB';
+
+  PageCliente.Add('Login do usuário do painel (ex: GERENTE):', False);
+  PageCliente.Values[2] := '';
+
+  PageCliente.Add('Senha do usuário do painel:', True);
+  PageCliente.Values[3] := '';
 end;
 
-// ── Valida campos antes de prosseguir ────────────────────────────────────────
+// ── Validação dos campos antes de avançar ────────────────────────────────────
 function NextButtonClick(CurPageID: Integer): Boolean;
-var
-  fdb, url, chave: String;
 begin
   Result := True;
-  if CurPageID = PageConfig.ID then
+
+  if CurPageID = PageBackend.ID then
   begin
-    fdb   := Trim(PageConfig.Values[0]);
-    url   := Trim(PageConfig.Values[1]);
-    chave := Trim(PageConfig.Values[2]);
+    if Trim(PageBackend.Values[0]) = '' then
+    begin
+      MsgBox('Informe a URL do servidor SigeDash.', mbError, MB_OK);
+      Result := False; Exit;
+    end;
+    if Trim(PageBackend.Values[1]) = '' then
+    begin
+      MsgBox('Informe a Chave de Administração.', mbError, MB_OK);
+      Result := False; Exit;
+    end;
+  end;
 
-    if fdb = '' then
+  if CurPageID = PageCliente.ID then
+  begin
+    if Trim(PageCliente.Values[0]) = '' then
     begin
-      MsgBox('Por favor, informe o caminho do banco Firebird (.FDB).', mbError, MB_OK);
+      MsgBox('Informe o nome da empresa.', mbError, MB_OK);
       Result := False; Exit;
     end;
-    if url = '' then
+    if Trim(PageCliente.Values[1]) = '' then
     begin
-      MsgBox('Por favor, informe a URL do Backend SigeDash.', mbError, MB_OK);
+      MsgBox('Informe o caminho do banco Firebird.', mbError, MB_OK);
       Result := False; Exit;
     end;
-    if chave = '' then
+    if Trim(PageCliente.Values[2]) = '' then
     begin
-      MsgBox('Por favor, informe a Chave do Cliente fornecida pela SistemasBr.', mbError, MB_OK);
+      MsgBox('Informe o login do usuário do painel.', mbError, MB_OK);
+      Result := False; Exit;
+    end;
+    if Trim(PageCliente.Values[3]) = '' then
+    begin
+      MsgBox('Informe a senha do usuário do painel.', mbError, MB_OK);
       Result := False; Exit;
     end;
   end;
 end;
 
-// ── Gera agente.config.json com os valores informados ────────────────────────
-procedure GravarConfig;
-var
-  fdb, url, chave: String;
-  connStr, json: String;
-  configPath: String;
-  lines: TStringList;
-begin
-  fdb   := Trim(PageConfig.Values[0]);
-  url   := Trim(PageConfig.Values[1]);
-  chave := Trim(PageConfig.Values[2]);
-
-  // Escapa barras invertidas para JSON
-  StringChangeEx(fdb, '\', '\\', True);
-
-  connStr := 'User=SYSDBA;Password=masterkey;Database=' + fdb +
-             ';DataSource=localhost;Port=3050;Dialect=3;Charset=ISO8859_1;' +
-             'Pooling=true;ConnectionLifetime=60';
-
-  json :=
-    '{' + #13#10 +
-    '  "FirebirdConnectionString": "' + connStr + '",' + #13#10 +
-    '  "CodigoEmpresa": 1,' + #13#10 +
-    '  "BackendUrl": "' + url + '",' + #13#10 +
-    '  "ChaveCliente": "' + chave + '",' + #13#10 +
-    '  "PastaSql": "Indicadores/sql"' + #13#10 +
-    '}';
-
-  configPath := ExpandConstant('{app}\Config\agente.config.json');
-
-  lines := TStringList.Create;
-  try
-    lines.Text := json;
-    lines.SaveToFile(configPath);
-  finally
-    lines.Free;
-  end;
-end;
-
-// ── Para o serviço se já existir (atualização) ───────────────────────────────
+// ── Para o serviço se já existir ─────────────────────────────────────────────
 procedure PararServico;
 begin
   Exec(ExpandConstant('{sys}\sc.exe'), 'stop {#ServiceName}',
     '', SW_HIDE, ewWaitUntilTerminated, nil);
-  // Pequena pausa para o SCM registrar a parada
   Sleep(1500);
 end;
 
-// ── Remove instalação anterior do serviço ────────────────────────────────────
 procedure RemoverServico;
 begin
   Exec(ExpandConstant('{sys}\sc.exe'), 'delete {#ServiceName}',
@@ -169,35 +154,62 @@ var
 begin
   exePath := ExpandConstant('{app}\{#AppExe}');
 
-  // sc create
   params := 'create {#ServiceName} binPath= "' + exePath + '"' +
             ' start= auto DisplayName= "{#ServiceLabel}"';
   Exec(ExpandConstant('{sys}\sc.exe'), params, '', SW_HIDE,
     ewWaitUntilTerminated, @resultCode);
 
-  // Descrição do serviço
   Exec(ExpandConstant('{sys}\sc.exe'),
     'description {#ServiceName} "Sincroniza dados do Firebird com o painel SigeDash"',
     '', SW_HIDE, ewWaitUntilTerminated, @resultCode);
-
-  // sc start
-  Exec(ExpandConstant('{sys}\sc.exe'), 'start {#ServiceName}',
-    '', SW_HIDE, ewWaitUntilTerminated, @resultCode);
 end;
 
-// ── Hook pós-instalação dos arquivos ─────────────────────────────────────────
+// ── Chama o script PowerShell que registra no backend e grava o config ───────
+procedure ConfigurarViaScript;
+var
+  psArgs  : String;
+  appPath : String;
+  resultCode: Integer;
+begin
+  appPath := ExpandConstant('{app}');
+
+  psArgs :=
+    '-NoProfile -ExecutionPolicy Bypass -File "' + appPath + '\configurar-cliente.ps1"' +
+    ' -BackendUrl "'   + Trim(PageBackend.Values[0]) + '"' +
+    ' -AdminKey "'     + Trim(PageBackend.Values[1]) + '"' +
+    ' -ClienteNome "'  + Trim(PageCliente.Values[0]) + '"' +
+    ' -FdbPath "'      + Trim(PageCliente.Values[1]) + '"' +
+    ' -UserLogin "'    + Trim(PageCliente.Values[2]) + '"' +
+    ' -UserSenha "'    + Trim(PageCliente.Values[3]) + '"' +
+    ' -ConfigDir "'    + appPath + '\Config"';
+
+  Exec('powershell.exe', psArgs, '', SW_HIDE, ewWaitUntilTerminated, @resultCode);
+
+  if resultCode <> 0 then
+    MsgBox(
+      'Aviso: não foi possível registrar o cliente no servidor automaticamente.' + #13#10 +
+      'O agente foi instalado, mas pode ser necessário configurar manualmente.' + #13#10 +
+      'Verifique o arquivo: ' + appPath + '\Config\setup.log',
+      mbInformation, MB_OK);
+end;
+
+// ── Hook pós-instalação ───────────────────────────────────────────────────────
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
-    GravarConfig;
-    PararServico;    // garante que não há instância antiga rodando
-    RemoverServico;  // remove registro antigo (atualização)
-    InstalarServico; // registra e inicia
+    PararServico;
+    RemoverServico;
+    ConfigurarViaScript;  // registra no backend + grava config
+    InstalarServico;      // instala e inicia o serviço
+
+    // Inicia o serviço (config já está pronta)
+    Exec(ExpandConstant('{sys}\sc.exe'), 'start {#ServiceName}',
+      '', SW_HIDE, ewWaitUntilTerminated, nil);
   end;
 end;
 
-// ── Desinstalação: para e remove o serviço ───────────────────────────────────
+// ── Desinstalação ─────────────────────────────────────────────────────────────
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usUninstall then

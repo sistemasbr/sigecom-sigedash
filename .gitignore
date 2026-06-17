@@ -9,6 +9,7 @@ Bancos/
 .env
 *.env.local
 agente.config.json
+appsettings.*.local.json
 
 # ── Build .NET ────────────────────────────────────────────────────────────────
 bin/
