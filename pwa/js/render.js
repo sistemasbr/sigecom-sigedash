@@ -19,6 +19,7 @@ const Render = (() => {
     vendas_forma_pagamento:         '#5D4037',
     vendas_custo_venda:             '#455A64',
     estoque_top_produtos:           '#00796B',
+    estoque_pesquisa_produto:       '#00695C',
     estoque_abaixo_min:             '#E65100',
     estoque_sem_estoque:            '#C62828',
     financeiro_receber_mes:         '#0277BD',
@@ -124,8 +125,10 @@ const Render = (() => {
   }
 
   // ── Ranking Card ──────────────────────────────────────────────────────────
-  function rankingCard(snap) {
+  function rankingCard(snap, opts) {
     const { titulo, dados } = parseSnap(snap);
+    const isQtd = snap.indicadorHandle === 'estoque_top_produtos' || snap.indicadorHandle === 'estoque_abaixo_min';
+    const exibir = (opts && opts.limit) ? dados.slice(0, opts.limit) : dados;
 
     const card = document.createElement('div');
     card.className = 'card';
@@ -134,19 +137,19 @@ const Render = (() => {
     const body = document.createElement('div');
     body.className = 'card-body';
 
-    if (!dados.length) {
+    if (!exibir.length) {
       body.innerHTML = '<p class="ranking-vazio">Nenhum registro encontrado!</p>';
       card.appendChild(body);
       return card;
     }
 
-    dados.forEach(function(d, i) {
+    exibir.forEach(function(d, i) {
       const pos = i + 1;
       const medalha = pos === 1 ? 'ouro' : pos === 2 ? 'prata' : pos === 3 ? 'bronze' : '';
       const raw = Number(d.value != null ? d.value : (d.valor != null ? d.valor : 0));
-      const valorFmt = d.minimo !== undefined ? num(raw) : moeda(raw);
+      const valorFmt = (isQtd || d.minimo != null) ? num(raw) : moeda(raw);
       const nome = d.label || d.nome || '';
-      const sub  = d.minimo !== undefined ? 'Mínimo: ' + num(d.minimo) : null;
+      const sub  = d.minimo != null ? 'Mínimo: ' + num(d.minimo) : null;
 
       const item = document.createElement('div');
       item.className = 'ranking-item';
@@ -269,15 +272,15 @@ const Render = (() => {
   }
 
   // ── Despacho principal ────────────────────────────────────────────────────
-  function indicador(snap) {
+  function indicador(snap, opts) {
     const { tipo } = parseSnap(snap);
     switch (tipo) {
       case 'info':          return infoCard(snap);
-      case 'ranking':       return rankingCard(snap);
+      case 'ranking':       return rankingCard(snap, opts);
       case 'list':          return listaCard(snap);
       case 'bar':           return chartCard(snap, false);
       case 'barhorizontal': return chartCard(snap, true);
-      default:              return rankingCard(snap);
+      default:              return rankingCard(snap, opts);
     }
   }
 

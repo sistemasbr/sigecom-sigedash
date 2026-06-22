@@ -1,5 +1,5 @@
-/* Top 10 produtos com maior quantidade em estoque. @EMPRESA parametrizado. */
-SELECT FIRST 10
+/* Top 100 produtos com maior quantidade em estoque. @EMPRESA parametrizado. */
+SELECT FIRST 100
     PB.NOME                            AS "label",
     CAST(PE.ESTOQUE AS NUMERIC(12, 2)) AS "value"
 FROM PRODUTO_BASE PB

@@ -10,6 +10,8 @@ Bancos/
 *.env.local
 agente.config.json
 appsettings.*.local.json
+appsettings.Production.json
+.claude/settings.local.json
 
 # ── Build .NET ────────────────────────────────────────────────────────────────
 bin/

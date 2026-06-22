@@ -109,7 +109,8 @@ input, button { -webkit-appearance: none; appearance: none; }
 
 .login-form label:first-child { margin-top: 0; }
 
-.login-form input {
+.login-form input,
+.login-form select {
   width: 100%;
   height: 48px;
   padding: 0 12px;
@@ -119,9 +120,13 @@ input, button { -webkit-appearance: none; appearance: none; }
   color: #263238;
   font-size: 16px;
   transition: border-color .2s, box-shadow .2s;
+  box-sizing: border-box;
 }
 
-.login-form input:focus {
+.login-form select { cursor: pointer; appearance: auto; }
+
+.login-form input:focus,
+.login-form select:focus {
   outline: none;
   border-color: #00ACC1;
   box-shadow: 0 0 0 3px rgba(0,172,193,.15);
@@ -179,6 +184,8 @@ input, button { -webkit-appearance: none; appearance: none; }
 }
 
 /* ─── APP SHELL ─────────────────────────────────────── */
+#app[hidden] { display: none; }
+
 #app {
   display: flex;
   flex-direction: column;
@@ -774,3 +781,116 @@ input, button { -webkit-appearance: none; appearance: none; }
 .sec > .sec-grupo:first-child { padding-top: 16px; }
 
 :focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; border-radius: 4px; }
+
+/* ─── BUSCA INLINE NAS SEÇÕES ────────────────────── */
+.sec-busca-wrap {
+  padding: 12px 16px 4px;
+}
+
+.sec-busca-inner { position: relative; }
+
+.sec-busca-ico {
+  position: absolute;
+  left: 11px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--c-dim);
+  pointer-events: none;
+  display: flex; align-items: center;
+}
+
+.sec-busca-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px 0 36px;
+  background: var(--c-surface);
+  border: 1.5px solid var(--c-border);
+  border-radius: var(--r-sm);
+  color: var(--c-text);
+  font-size: 15px;
+  transition: border-color .2s;
+  box-sizing: border-box;
+}
+
+.sec-busca-input:focus {
+  outline: none;
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+}
+
+.sec-busca-input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.sec-busca-input::placeholder { color: var(--c-dim); }
+
+/* ─── RESULTADOS DE BUSCA ───────────────────────── */
+.busca-cabecalho {
+  padding: 12px 16px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-dim);
+}
+
+.busca-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.busca-item-info { flex: 1; min-width: 0; }
+
+.busca-item-nome {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.busca-item-det {
+  font-size: 12px;
+  color: var(--c-muted);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.busca-item-det .tag-vencido { color: var(--c-danger); font-weight: 600; }
+.busca-item-det .tag-ok      { color: var(--c-success); }
+
+.busca-item-valor {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text);
+  text-align: right;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.busca-item-valor.vencido { color: var(--c-danger); }
+
+/* ─── CARREGAR MAIS (paginação) ─────────────────── */
+.btn-carregar-mais {
+  display: block;
+  width: calc(100% - 32px);
+  margin: 0 16px 20px;
+  padding: 13px 16px;
+  background: var(--c-surface);
+  border: 1.5px solid var(--c-border);
+  border-radius: var(--r-sm);
+  color: var(--c-muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, color .2s, background .2s;
+  letter-spacing: 0.02em;
+}
+
+.btn-carregar-mais:active {
+  background: var(--c-surface2);
+  border-color: var(--c-primary);
+  color: var(--c-primary);
+}

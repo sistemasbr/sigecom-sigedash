@@ -19,15 +19,13 @@ public class Loja
     public string Nome { get; set; } = "";
 }
 
-/// <summary>Usuario do app mobile. Senha em BCrypt (nunca SHA-1 do PlugBot).</summary>
+/// <summary>Usuario do app. Login e SenhaApp sincronizados da tabela USUARIO do Firebird pelo agente.</summary>
 public class UsuarioApp
 {
     public int Id { get; set; }
     public int ClienteId { get; set; }
     public string Login { get; set; } = "";
-    public string? Email { get; set; }
-    public string SenhaHash { get; set; } = "";
-    public string? Departamento { get; set; }
+    public string SenhaApp { get; set; } = ""; // SHA-1 hex do campo SENHA_APP do Sigecom
 }
 
 /// <summary>Snapshot de um indicador recebido do agente. payload_json e o resultado pronto.</summary>

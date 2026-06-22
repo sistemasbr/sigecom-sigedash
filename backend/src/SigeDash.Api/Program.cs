@@ -1,16 +1,19 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SigeDash.Api.Data;
 using SigeDash.Api.Endpoints;
 
-// wwwroot/ deve existir antes do CreateBuilder (o StaticWebAssets manifest aponta para ela)
-var wwwrootPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+// AppContext.BaseDirectory = diretório do .exe (funciona como serviço Windows onde CWD é System32)
+var appDir      = AppContext.BaseDirectory;
+var wwwrootPath = Path.Combine(appDir, "wwwroot");
 Directory.CreateDirectory(wwwrootPath);
 
 // Dev: serve da pasta pwa/ (fonte) | Produção: usa wwwroot/ (copiado no publish)
-var pwaDev  = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "../../../pwa"));
+var pwaDev  = Path.GetFullPath(Path.Combine(appDir, "../../../pwa"));
 var webRoot = Directory.Exists(pwaDev) ? pwaDev : wwwrootPath;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -49,6 +52,25 @@ var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<stri
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.AllowAnyHeader().AllowAnyMethod().WithOrigins(allowedOrigins)));
 
+// Rate limiting: /auth/login — máx 5 tentativas por IP por minuto
+builder.Services.AddRateLimiter(opt =>
+{
+    opt.AddPolicy("login", ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "anon",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit          = 5,
+                Window               = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit           = 0
+            }));
+    opt.RejectionStatusCode = 429;
+});
+
+// Suporte a execução como Windows Service (no-op quando rodando normalmente)
+builder.Host.UseWindowsService();
+
 var app = builder.Build();
 
 // Aplica migrations automaticamente (dev + produção)
@@ -65,6 +87,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -71,7 +71,7 @@ begin
   // Página 2 — cliente
   PageCliente := CreateInputQueryPage(PageBackend.ID,
     'Dados do Cliente',
-    'Informe os dados da empresa e do primeiro usuário do painel',
+    'Informe os dados da empresa. Os usuários serão sincronizados automaticamente do Sigecom.',
     '');
 
   PageCliente.Add('Nome da empresa (ex: Autopeças Silva):', False);
@@ -79,12 +79,6 @@ begin
 
   PageCliente.Add('Caminho do banco Firebird (.FDB):', False);
   PageCliente.Values[1] := 'C:\Sigecom\dados\EMPRESA.FDB';
-
-  PageCliente.Add('Login do usuário do painel (ex: GERENTE):', False);
-  PageCliente.Values[2] := '';
-
-  PageCliente.Add('Senha do usuário do painel:', True);
-  PageCliente.Values[3] := '';
 end;
 
 // ── Validação dos campos antes de avançar ────────────────────────────────────
@@ -118,31 +112,25 @@ begin
       MsgBox('Informe o caminho do banco Firebird.', mbError, MB_OK);
       Result := False; Exit;
     end;
-    if Trim(PageCliente.Values[2]) = '' then
-    begin
-      MsgBox('Informe o login do usuário do painel.', mbError, MB_OK);
-      Result := False; Exit;
-    end;
-    if Trim(PageCliente.Values[3]) = '' then
-    begin
-      MsgBox('Informe a senha do usuário do painel.', mbError, MB_OK);
-      Result := False; Exit;
-    end;
   end;
 end;
 
 // ── Para o serviço se já existir ─────────────────────────────────────────────
 procedure PararServico;
+var
+  rc: Integer;
 begin
   Exec(ExpandConstant('{sys}\sc.exe'), 'stop {#ServiceName}',
-    '', SW_HIDE, ewWaitUntilTerminated, nil);
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
   Sleep(1500);
 end;
 
 procedure RemoverServico;
+var
+  rc: Integer;
 begin
   Exec(ExpandConstant('{sys}\sc.exe'), 'delete {#ServiceName}',
-    '', SW_HIDE, ewWaitUntilTerminated, nil);
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
   Sleep(500);
 end;
 
@@ -154,36 +142,37 @@ var
 begin
   exePath := ExpandConstant('{app}\{#AppExe}');
 
-  params := 'create {#ServiceName} binPath= "' + exePath + '"' +
-            ' start= auto DisplayName= "{#ServiceLabel}"';
+  params := 'create {#ServiceName} binPath= "' + exePath + '"';
+  params := params + ' start= auto DisplayName= "{#ServiceLabel}"';
   Exec(ExpandConstant('{sys}\sc.exe'), params, '', SW_HIDE,
-    ewWaitUntilTerminated, @resultCode);
+    ewWaitUntilTerminated, resultCode);
 
   Exec(ExpandConstant('{sys}\sc.exe'),
     'description {#ServiceName} "Sincroniza dados do Firebird com o painel SigeDash"',
-    '', SW_HIDE, ewWaitUntilTerminated, @resultCode);
+    '', SW_HIDE, ewWaitUntilTerminated, resultCode);
 end;
 
 // ── Chama o script PowerShell que registra no backend e grava o config ───────
 procedure ConfigurarViaScript;
 var
-  psArgs  : String;
-  appPath : String;
+  psArgs, appPath: String;
+  backendUrl, adminKey, clienteNome, fdbPath: String;
   resultCode: Integer;
 begin
-  appPath := ExpandConstant('{app}');
+  appPath     := ExpandConstant('{app}');
+  backendUrl  := PageBackend.Values[0];
+  adminKey    := PageBackend.Values[1];
+  clienteNome := PageCliente.Values[0];
+  fdbPath     := PageCliente.Values[1];
 
-  psArgs :=
-    '-NoProfile -ExecutionPolicy Bypass -File "' + appPath + '\configurar-cliente.ps1"' +
-    ' -BackendUrl "'   + Trim(PageBackend.Values[0]) + '"' +
-    ' -AdminKey "'     + Trim(PageBackend.Values[1]) + '"' +
-    ' -ClienteNome "'  + Trim(PageCliente.Values[0]) + '"' +
-    ' -FdbPath "'      + Trim(PageCliente.Values[1]) + '"' +
-    ' -UserLogin "'    + Trim(PageCliente.Values[2]) + '"' +
-    ' -UserSenha "'    + Trim(PageCliente.Values[3]) + '"' +
-    ' -ConfigDir "'    + appPath + '\Config"';
+  psArgs := '-NoProfile -ExecutionPolicy Bypass -File "' + appPath + '\configurar-cliente.ps1"';
+  psArgs := psArgs + ' -BackendUrl "' + backendUrl + '"';
+  psArgs := psArgs + ' -AdminKey "' + adminKey + '"';
+  psArgs := psArgs + ' -ClienteNome "' + clienteNome + '"';
+  psArgs := psArgs + ' -FdbPath "' + fdbPath + '"';
+  psArgs := psArgs + ' -ConfigDir "' + appPath + '\Config"';
 
-  Exec('powershell.exe', psArgs, '', SW_HIDE, ewWaitUntilTerminated, @resultCode);
+  Exec('powershell.exe', psArgs, '', SW_HIDE, ewWaitUntilTerminated, resultCode);
 
   if resultCode <> 0 then
     MsgBox(
@@ -195,6 +184,8 @@ end;
 
 // ── Hook pós-instalação ───────────────────────────────────────────────────────
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  resultCode: Integer;
 begin
   if CurStep = ssPostInstall then
   begin
@@ -205,7 +196,7 @@ begin
 
     // Inicia o serviço (config já está pronta)
     Exec(ExpandConstant('{sys}\sc.exe'), 'start {#ServiceName}',
-      '', SW_HIDE, ewWaitUntilTerminated, nil);
+      '', SW_HIDE, ewWaitUntilTerminated, resultCode);
   end;
 end;
 

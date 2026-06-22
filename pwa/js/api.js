@@ -40,8 +40,14 @@ const API = (() => {
     return r.json();
   }
 
+  async function empresas() {
+    const r = await fetch(`${BASE}/auth/empresas`);
+    if (!r.ok) return [];
+    return r.json();
+  }
+
   function sair() { token = null; sessionStorage.clear(); }
   function logado() { return !!token; }
 
-  return { login, dashboards, queryIA, sair, logado };
+  return { login, dashboards, queryIA, empresas, sair, logado };
 })();

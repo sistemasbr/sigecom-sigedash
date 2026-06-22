@@ -4,9 +4,6 @@ param(
     [string]$ClienteNome,
     [string]$FdbPath,
     [string]$Sysdba      = "masterkey",
-    [string]$UserLogin,
-    [string]$UserSenha,
-    [string]$Departamento = "Administradores",
     [string]$ConfigDir    = "$PSScriptRoot\Config"
 )
 
@@ -30,9 +27,9 @@ if (-not (Test-Path $FdbPath)) {
 # ── 2. Registra o cliente no backend ─────────────────────────────────────────
 try {
     $bodyCliente = @{
-        nome           = $ClienteNome
-        codigoEmpresa  = 1
-        nomeLoja       = "Matriz"
+        nome          = $ClienteNome
+        codigoEmpresa = 1
+        nomeLoja      = "Matriz"
     } | ConvertTo-Json
 
     $respCliente = Invoke-RestMethod `
@@ -45,7 +42,7 @@ try {
     Log "Cliente registrado. ChaveApi: $chaveApi"
 }
 catch {
-    # Se cliente já existe, tenta buscar a chave existente
+    # Se cliente já existe, busca a chave existente
     if ($_.Exception.Response.StatusCode -eq 409) {
         Log "Cliente já existe no backend — usando cadastro existente."
         try {
@@ -67,33 +64,7 @@ catch {
     }
 }
 
-# ── 3. Cria usuário do app ────────────────────────────────────────────────────
-try {
-    $bodyUser = @{
-        clienteNome  = $ClienteNome
-        login        = $UserLogin.ToUpper()
-        senha        = $UserSenha
-        departamento = $Departamento
-    } | ConvertTo-Json
-
-    Invoke-RestMethod `
-        -Uri     "$BackendUrl/admin/usuarios" `
-        -Method  POST `
-        -Headers @{ "X-Admin-Key" = $AdminKey; "Content-Type" = "application/json" } `
-        -Body    $bodyUser | Out-Null
-
-    Log "Usuário '$($UserLogin.ToUpper())' criado."
-}
-catch {
-    if ($_.Exception.Response.StatusCode -eq 409) {
-        Log "Usuário já existe — mantido sem alteração."
-    }
-    else {
-        Log "AVISO ao criar usuário: $_ (continuando...)"
-    }
-}
-
-# ── 4. Grava agente.config.json ───────────────────────────────────────────────
+# ── 3. Grava agente.config.json ───────────────────────────────────────────────
 New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
 
 $fdbEscaped = $FdbPath -replace '\\', '\\'
@@ -112,13 +83,13 @@ $config = [ordered]@{
 $config | ConvertTo-Json -Depth 3 | Set-Content "$ConfigDir\agente.config.json" -Encoding UTF8
 Log "agente.config.json gravado em $ConfigDir"
 
-# ── 5. Reinicia o serviço (se já instalado) ───────────────────────────────────
+# ── 4. Reinicia o serviço (se já instalado) ───────────────────────────────────
 $svc = Get-Service "SigeDashAgente" -ErrorAction SilentlyContinue
 if ($svc) {
     Restart-Service "SigeDashAgente" -Force -ErrorAction SilentlyContinue
-    Log "Serviço SigeDashAgente reiniciado."
+    Log "Servico SigeDashAgente reiniciado."
 }
 
-Log "=== Configuração concluída com sucesso! ==="
-Log "Acesso: $BackendUrl"
-Log "Empresa: $ClienteNome  |  Login: $($UserLogin.ToUpper())"
+Log "=== Configuração concluída! ==="
+Log "Backend: $BackendUrl | Empresa: $ClienteNome"
+Log "Usuarios do Sigecom serao sincronizados automaticamente quando o agente iniciar."

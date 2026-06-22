@@ -28,30 +28,7 @@ public static class SeedData
             }
         };
         db.Clientes.Add(cliente);
-        db.SaveChanges(); // gera cliente.Id
-
-        // (login, senha em texto, departamento) — senhas reais descobertas no 5ESTRELAS.FDB
-        var usuarios = new (string login, string senha, string depto)[]
-        {
-            ("GILMAR",  "123",  "Vendedores"),
-            ("RONAN",   "123",  "Administradores"),
-            ("ESTOQUE", "123",  "Estoque"),
-            ("AUTO",    "123",  "Administradores"),
-            ("JESSICA", "7514", "Administradores"),
-            // admin de conveniencia para teste
-            ("ADMIN",   "sigedash@123", "Administradores")
-        };
-
-        foreach (var (login, senha, depto) in usuarios)
-        {
-            db.UsuariosApp.Add(new UsuarioApp
-            {
-                ClienteId = cliente.Id,
-                Login = login,
-                Departamento = depto,
-                SenhaHash = BCrypt.Net.BCrypt.HashPassword(senha) // SHA-1 -> bcrypt
-            });
-        }
         db.SaveChanges();
+        // Usuários são sincronizados automaticamente pelo agente via POST /ingest/usuarios
     }
 }

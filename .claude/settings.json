@@ -15,7 +15,13 @@
       "Bash(node verify.mjs)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Dell\\\\Desktop\\\\ClaudeSigecom\\\\sigedash-br\" -Recurse -Depth 2)",
       "Bash(Select-Object FullName, PSIsContainer)",
-      "Bash(Sort-Object FullName)"
+      "Bash(Sort-Object FullName)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(dotnet build *)",
+      "Bash(curl -s -X POST http://localhost:5000/admin/clientes -H \"X-Admin-Key: admin-dev-local\" -H \"Content-Type: application/json\" -d \"{\\\\\"nome\\\\\": \\\\\"Amaral\\\\\", \\\\\"codigoEmpresa\\\\\": 1, \\\\\"nomeLoja\\\\\": \\\\\"Matriz\\\\\"}\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Dell\\Desktop\\ClaudeSigecom\\sigedash-br\\Logo-BG"

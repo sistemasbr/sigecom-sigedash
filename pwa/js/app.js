@@ -170,26 +170,171 @@ function renderVendas(el) {
 }
 
 // ── Estoque ────────────────────────────────────────────────────────────────
+var _estTopN  = 10;
+var _estBuscaQ = '';
+
 function renderEstoque(el) {
   el.innerHTML = '';
-  var grupos = [
-    { titulo: 'Maiores Estoques', handles: ['estoque_top_produtos'] },
-    { titulo: 'Alertas',          handles: ['estoque_sem_estoque','estoque_abaixo_min'] },
-  ];
-  var temAlgum = false;
-  grupos.forEach(function(g) {
-    var disp = g.handles.filter(function(h) { return _snaps[h]; });
-    if (!disp.length) return;
-    temAlgum = true;
-    el.appendChild(secGrupo(g.titulo));
-    disp.forEach(function(h) { el.appendChild(Render.indicador(_snaps[h])); });
+  _estTopN = 10;
+
+  var buscaWrap = document.createElement('div');
+  buscaWrap.className = 'sec-busca-wrap';
+  buscaWrap.innerHTML =
+    '<div class="sec-busca-inner">' +
+      '<svg class="sec-busca-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>' +
+      '</svg>' +
+      '<input id="est-busca" class="sec-busca-input" type="search" ' +
+        'placeholder="Pesquisar produto…" value="' + _escHtml(_estBuscaQ) + '" ' +
+        'autocomplete="off" inputmode="search" aria-label="Pesquisar produto">' +
+    '</div>';
+  el.appendChild(buscaWrap);
+
+  var conteudoEl = document.createElement('div');
+  el.appendChild(conteudoEl);
+
+  document.getElementById('est-busca').addEventListener('input', function() {
+    _estBuscaQ = this.value.trim();
+    _estTopN = 10;
+    _estRenderConteudo(conteudoEl);
   });
-  if (!temAlgum) el.appendChild(Render.emptyState('Sem dados de estoque', 'Execute o agente para carregar os indicadores de estoque.'));
+
+  _estRenderConteudo(conteudoEl);
+}
+
+function _estRenderConteudo(el) {
+  el.innerHTML = '';
+  if (_estBuscaQ.length > 0) {
+    _estRenderBusca(el, _estBuscaQ);
+  } else {
+    _estRenderCards(el);
+  }
+}
+
+function _estRenderCards(el) {
+  var snapTop = _snaps['estoque_top_produtos'];
+  var temAlgum = false;
+
+  if (snapTop) {
+    temAlgum = true;
+    var dados = Render.parseSnap(snapTop).dados;
+    el.appendChild(secGrupo('Maiores Estoques'));
+    el.appendChild(Render.indicador(snapTop, { limit: _estTopN }));
+    if (_estTopN < dados.length) {
+      var restante = Math.min(10, dados.length - _estTopN);
+      var btnMais = document.createElement('button');
+      btnMais.className = 'btn-carregar-mais';
+      btnMais.textContent = 'Carregar mais ' + restante + ' produtos';
+      btnMais.addEventListener('click', function() {
+        _estTopN += 10;
+        _estRenderConteudo(el);
+      });
+      el.appendChild(btnMais);
+    }
+  }
+
+  var alertasDisp = ['estoque_sem_estoque', 'estoque_abaixo_min'].filter(function(h) { return _snaps[h]; });
+  if (alertasDisp.length) {
+    temAlgum = true;
+    el.appendChild(secGrupo('Alertas'));
+    alertasDisp.forEach(function(h) { el.appendChild(Render.indicador(_snaps[h])); });
+  }
+
+  if (!temAlgum) {
+    el.appendChild(Render.emptyState('Sem dados de estoque', 'Execute o agente para carregar os indicadores de estoque.'));
+  }
+}
+
+function _estRenderBusca(el, q) {
+  var snap = _snaps['estoque_pesquisa_produto'];
+  if (!snap) {
+    el.appendChild(Render.emptyState('Dados ainda não sincronizados', 'O agente sincroniza a busca de produtos a cada 30 minutos.'));
+    return;
+  }
+
+  var dados = Render.parseSnap(snap).dados;
+  var ql = q.toLowerCase();
+  var filtrados = dados.filter(function(d) {
+    return (d.label || '').toLowerCase().indexOf(ql) >= 0;
+  });
+
+  if (!filtrados.length) {
+    el.appendChild(Render.emptyState('Nenhum resultado', 'Nenhum produto com esse nome foi encontrado.'));
+    return;
+  }
+
+  var cab = document.createElement('div');
+  cab.className = 'busca-cabecalho';
+  cab.textContent = filtrados.length + (filtrados.length === 1 ? ' produto' : ' produtos') + ' para "' + q + '"';
+  el.appendChild(cab);
+
+  filtrados.forEach(function(d) {
+    var nome    = d.label || '';
+    var estoque = Number(d.estoque != null ? d.estoque : 0);
+    var custo   = Number(d.custo   != null ? d.custo   : 0);
+    var venda   = Number(d.venda   != null ? d.venda   : 0);
+    var semEst  = estoque <= 0;
+
+    var estStr = estoque.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' un';
+    var detExtra = '';
+    if (custo > 0) detExtra += ' &middot; Custo ' + Render.moeda(custo);
+    if (venda > 0) detExtra += ' &middot; Venda ' + Render.moeda(venda);
+
+    var item = document.createElement('div');
+    item.className = 'busca-item';
+    item.innerHTML =
+      '<div class="busca-item-info">' +
+        '<div class="busca-item-nome">' + _escHtml(nome) + '</div>' +
+        '<div class="busca-item-det">' +
+          '<span class="' + (semEst ? 'tag-vencido' : 'tag-ok') + '">' + estStr + '</span>' +
+          detExtra +
+        '</div>' +
+      '</div>';
+    el.appendChild(item);
+  });
 }
 
 // ── Financeiro ─────────────────────────────────────────────────────────────
+var _finBuscaQ = '';
+
 function renderFinanceiro(el) {
   el.innerHTML = '';
+
+  // Barra de busca
+  var buscaWrap = document.createElement('div');
+  buscaWrap.className = 'sec-busca-wrap';
+  buscaWrap.innerHTML =
+    '<div class="sec-busca-inner">' +
+      '<svg class="sec-busca-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>' +
+      '</svg>' +
+      '<input id="fin-busca" class="sec-busca-input" type="search" ' +
+        'placeholder="Buscar cliente ou fornecedor…" value="' + _escHtml(_finBuscaQ) + '" ' +
+        'autocomplete="off" inputmode="search" aria-label="Pesquisar">' +
+    '</div>';
+  el.appendChild(buscaWrap);
+
+  var conteudoEl = document.createElement('div');
+  el.appendChild(conteudoEl);
+
+  document.getElementById('fin-busca').addEventListener('input', function() {
+    _finBuscaQ = this.value.trim();
+    _finRenderConteudo(conteudoEl);
+  });
+
+  _finRenderConteudo(conteudoEl);
+}
+
+function _finRenderConteudo(el) {
+  el.innerHTML = '';
+  if (_finBuscaQ.length > 0) {
+    _finRenderBusca(el, _finBuscaQ);
+  } else {
+    _finRenderCards(el);
+  }
+}
+
+function _finRenderCards(el) {
   var grupos = [
     { titulo: 'Contas a Receber',    handles: ['financeiro_receber_mes','financeiro_receber_semana','financeiro_receber_hoje'] },
     { titulo: 'Contas a Pagar',      handles: ['financeiro_pagar_mes','financeiro_pagar_semana','financeiro_pagar_hoje'] },
@@ -205,6 +350,58 @@ function renderFinanceiro(el) {
     disp.forEach(function(h) { el.appendChild(Render.indicador(_snaps[h])); });
   });
   if (!temAlgum) el.appendChild(Render.emptyState('Aguardando sincronização', 'Execute o agente para carregar os indicadores financeiros.'));
+}
+
+function _finRenderBusca(el, q) {
+  var snap = _snaps['receber_por_cliente'];
+  if (!snap) {
+    el.appendChild(Render.emptyState('Dados ainda não sincronizados', 'O agente sincroniza contas a receber a cada 15 minutos.'));
+    return;
+  }
+
+  var dados = Render.parseSnap(snap).dados;
+  var hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  var ql = q.toLowerCase();
+
+  var filtrados = dados.filter(function(d) {
+    return (d.label || '').toLowerCase().indexOf(ql) >= 0;
+  });
+
+  if (!filtrados.length) {
+    el.appendChild(Render.emptyState('Nenhum resultado', 'Nenhum cliente com esse nome possui contas em aberto.'));
+    return;
+  }
+
+  var cab = document.createElement('div');
+  cab.className = 'busca-cabecalho';
+  cab.textContent = filtrados.length + (filtrados.length === 1 ? ' resultado' : ' resultados') + ' para "' + q + '"';
+  el.appendChild(cab);
+
+  filtrados.forEach(function(d) {
+    var nome     = d.label || '';
+    var total    = Number(d.value || 0);
+    var parcelas = Number(d.parcelas || 1);
+    var vencDate = d.venc_mais_antigo ? new Date(d.venc_mais_antigo) : null;
+    if (vencDate) vencDate.setHours(0, 0, 0, 0);
+    var vencido  = vencDate && vencDate < hoje;
+    var vencFmt  = vencDate ? vencDate.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' }) : '';
+
+    var parStr = parcelas === 1 ? '1 parcela' : parcelas + ' parcelas';
+    var vencTag = vencDate
+      ? ' &middot; <span class="' + (vencido ? 'tag-vencido' : 'tag-ok') + '">' +
+          (vencido ? 'Venceu ' : 'Vence ') + vencFmt + '</span>'
+      : '';
+
+    var item = document.createElement('div');
+    item.className = 'busca-item';
+    item.innerHTML =
+      '<div class="busca-item-info">' +
+        '<div class="busca-item-nome">' + _escHtml(nome) + '</div>' +
+        '<div class="busca-item-det">' + parStr + vencTag + '</div>' +
+      '</div>' +
+      '<div class="busca-item-valor' + (vencido ? ' vencido' : '') + '">' + Render.moeda(total) + '</div>';
+    el.appendChild(item);
+  });
 }
 
 // ── Dados ──────────────────────────────────────────────────────────────────
@@ -291,6 +488,11 @@ async function enviarPerguntaIA(pergunta) {
   }
 }
 
+// ── Utilitários ────────────────────────────────────────────────────────────
+function _escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ── Login ──────────────────────────────────────────────────────────────────
 document.getElementById('btn-entrar').addEventListener('click', async function() {
   var erro = document.getElementById('login-erro');
@@ -359,6 +561,39 @@ document.getElementById('btn-sair').addEventListener('click', function() {
 document.querySelectorAll('.nav-btn').forEach(function(btn) {
   btn.addEventListener('click', function() { navegar(btn.dataset.sec); });
 });
+
+// ── Popular dropdown de empresas no login ──────────────────────────────────
+(function carregarEmpresas() {
+  var sel = document.getElementById('in-cliente');
+
+  function tentar(tentativas) {
+    API.empresas().then(function(lista) {
+      sel.innerHTML = '';
+      if (!lista || lista.length === 0) {
+        sel.innerHTML = '<option value="" disabled selected>Nenhuma empresa cadastrada</option>';
+        sel.disabled = false;
+        return;
+      }
+      lista.forEach(function(emp) {
+        var opt = document.createElement('option');
+        opt.value = emp.nome;
+        opt.textContent = emp.nome;
+        sel.appendChild(opt);
+      });
+      sel.selectedIndex = 0;
+      sel.disabled = false;
+    }).catch(function() {
+      if (tentativas > 0) {
+        setTimeout(function() { tentar(tentativas - 1); }, 2000);
+      } else {
+        sel.innerHTML = '<option value="" disabled selected>Erro — recarregue a página</option>';
+        sel.disabled = false;
+      }
+    });
+  }
+
+  tentar(5); // até 5 tentativas com 2s de intervalo
+}());
 
 // ── Inicializar ────────────────────────────────────────────────────────────
 function mostrarApp() {

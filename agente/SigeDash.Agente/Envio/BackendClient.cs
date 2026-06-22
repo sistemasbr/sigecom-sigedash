@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using SigeDash.Agente.Config;
@@ -8,9 +11,15 @@ using SigeDash.Agente.Modelos;
 
 namespace SigeDash.Agente.Envio
 {
+    public sealed class UsuarioSync
+    {
+        public string Login    { get; set; }
+        public string SenhaApp { get; set; }
+    }
+
     /// <summary>
-    /// Envia snapshots ao backend. UM HttpClient reutilizado para toda a vida do servico
-    /// (criar HttpClient por requisicao causa esgotamento de sockets).
+    /// Envia snapshots e sincroniza usuarios ao backend.
+    /// Um HttpClient reutilizado para toda a vida do servico.
     /// </summary>
     public sealed class BackendClient : IDisposable
     {
@@ -26,13 +35,25 @@ namespace SigeDash.Agente.Envio
 
         public async Task EnviarAsync(string handle, Snapshot snapshot, CancellationToken ct)
         {
-            // o stream gzip e do snapshot; StreamContent nao copia para memoria de novo
             var conteudo = new StreamContent(snapshot.AbrirConteudoGzip());
             conteudo.Headers.ContentType = new MediaTypeHeaderValue("application/json");
             conteudo.Headers.ContentEncoding.Add("gzip");
 
             var url = $"/ingest/{_config.CodigoEmpresa}/{handle}";
             using (var resp = await _http.PostAsync(url, conteudo, ct).ConfigureAwait(false))
+            {
+                resp.EnsureSuccessStatusCode();
+            }
+        }
+
+        public async Task SincronizarUsuariosAsync(List<UsuarioSync> usuarios, CancellationToken ct)
+        {
+            var json = JsonSerializer.Serialize(usuarios, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+            var conteudo = new StringContent(json, Encoding.UTF8, "application/json");
+            using (var resp = await _http.PostAsync("/ingest/usuarios", conteudo, ct).ConfigureAwait(false))
             {
                 resp.EnsureSuccessStatusCode();
             }
